@@ -5,14 +5,18 @@
 import numpy as np
 import os
 
+import pickle
+from sklearn.externals import joblib
 
 from keras.models import Sequential
 from keras.layers.core import Dense, Activation
-from keras.optimizers import Adam, SGD
+from keras.optimizers import Adam, SGD, RMSprop
 import keras.callbacks as callbacks
 from keras.utils import np_utils
 from keras.models import load_model
 from keras import backend as K
+from keras.models import model_from_json
+
 
 
 class BaseParams(object):
@@ -34,12 +38,22 @@ class BaseParams(object):
         return return_str
 
     
-    def get_params_str(self):
+    def get_str(self):
         return_str = ''
         if self.verbose:
             return_str = '%s%s'%(return_str,"verbose_true")
         else:
             return_str = '%s%s'%(return_str,"verbose_false")
+            
+    def save(self):
+        if self.verbose:
+            print "Base Parameter Save"
+        return 0
+    
+    def load(self):
+        if self.verbose:
+            print "Base Parameter Load"
+        return 0
     
 class NeuralNetworkParams(BaseParams):
     """
@@ -47,15 +61,19 @@ class NeuralNetworkParams(BaseParams):
     """
     
     
-    def __init__(self, learning_rate=0.001,
-                 learning_decay=1e-6, momentum=0.3, 
-                 nesterov=True, train_verbose=False, verbose= False, 
-                 n_epochs=500, n_inits=1,batch_size=8):
+    def __init__(self, learning_rate=0.01,
+                 learning_decay=1e-6, momentum=0.9, 
+                 nesterov=True, rho=0.9, epsilon=None, 
+                 train_verbose=False, train_patience = 50,
+                 verbose= False, n_epochs=500, n_inits=1, batch_size=8):
         self.learning_rate = learning_rate
         self.learning_decay = learning_decay
         self.momentum = momentum
         self.nesterov = nesterov
+        self.rho = rho
+        self.epsilon = epsilon
         self.train_verbose = train_verbose
+        self.train_patience = train_patience
         self.verbose = verbose
         self.n_epochs = n_epochs
         self.n_inits = n_inits
@@ -70,6 +88,14 @@ class NeuralNetworkParams(BaseParams):
             return_str = '%s%s'%(return_str,'\t Nesterov: True\n')
         else:
             return_str = '%s%s'%(return_str,'\t Nesterov: False\n')
+        
+        return_str = '%s%s'%(return_str,('\t Rho: %1.5f\n'%(self.rho)))
+        
+        if self.epsilon is None:
+            return_str = '%s%s'%(return_str,'\t Epsilon is None\n')
+        else:
+            return_str = '%s%s'%(return_str,'\t Epsilon is not None\n')
+        
         if self.verbose:
             return_str = '%s%s'%(return_str,'\t Verbose: True\n')
         else:
@@ -80,11 +106,12 @@ class NeuralNetworkParams(BaseParams):
         else:
             return_str = '%s%s'%(return_str,'\t Train Verbose: False\n')
         return_str = '%s%s'%(return_str,'\t Epochs: %i\n'%(self.n_epochs))
+        return_str = '%s%s'%(return_str,'\t Patience: %i\n'%(self.train_patience))
         return_str = '%s%s'%(return_str,'\t Inits: %i\n'%(self.n_inits))
         return_str = '%s%s'%(return_str,'\t Batch Size: %i\n'%(self.batch_size))
         return return_str
     
-    def get_params_str(self):
+    def get_str(self):
         return_str = 'nn_params'
         return_str = '%s_lr_%s'%(return_str,('%1.5f'%self.learning_rate).replace('.','_'))
         return_str = '%s_ld_%s'%(return_str,('%1.7f'%self.learning_decay).replace('.','_'))
@@ -93,11 +120,42 @@ class NeuralNetworkParams(BaseParams):
             return_str = '%s_%s'%(return_str,'with_nesterov')
         else:
             return_str = '%s_%s'%(return_str,'without_nesterov')
+        return_str = '%s_rho_%s'%(return_str,('%1.5f'%self.rho).replace('.','_'))
+        if self.epsilon:
+            return_str = '%s_%s'%(return_str,'with_epsilon')
+        else:
+            return_str = '%s_%s'%(return_str,'without_epsilon')
         return_str = '%s_%s'%(return_str,'epochs_%i'%(self.n_epochs))
+        return_str = '%s_%s'%(return_str,'patience_%i'%(self.train_patience))
         return_str = '%s_%s'%(return_str,'inits_%i'%(self.n_inits))
         return_str = '%s_%s'%(return_str,'batchsize_%i'%(self.batch_size))
         return return_str
 
+    def save(self, filename, path="."):
+        if filename is None:
+            if self.verbose:
+                print "Neural Network Params Class - Save Function: No file name"
+            return -1
+        pickle.dump([self.learning_rate, 
+                     self.learning_decay, 
+                     self.momentum, self.nesterov,
+                     self.rho, self.epsilon,
+                     self.train_verbose, self.train_patience,
+                     self.verbose, self.n_epochs, self.n_inits,
+                     self.batch_size
+                    ], open("%s/%s"%(path,filename), "wb"))
+        return 1
+    
+    def load(self, filename, path="."):
+        if filename is None:
+            if self.verbose:
+                print "Neural Network Params Class - Load Function: No file name"
+            return -1
+        [self.learning_rate, self.learning_decay, self.momentum, self.nesterov, 
+         self.rho, self.epsilon, self.train_verbose, self.train_patience,
+         self.verbose, self.n_epochs, self.n_inits, 
+         self.batch_size] = pickle.load(open("%s/%s"%(path,filename), "rb"))
+        return 0        
 class Base(object):
 
     """
@@ -138,6 +196,11 @@ class Base(object):
         if verbose: 
             print "Base Model Fit"
         return 0
+    
+    def predict(self, input):
+        if verbose: 
+            print "Base Model Predict"
+        return 0
                 
     def __str__(self):
         return_str =  "Base Model Print \n"
@@ -174,7 +237,41 @@ class NeuralNetworkModel(Base):
         self.optimizer='sgd'
         self.loss='mean_squared_error'
         self.metrics=['accuracy']
+    
+    def __str__(self):
+        return_str =  "Neural Network Model Print \n"
+        if self.model is None:
+            return_str = "%s%s"%(return_str,"\t Model is None\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t Model is not None\n")
         
+        if self.trn_desc is None:
+            return_str = "%s%s"%(return_str,"\t Train Descriptor is None\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t Train Descriptor is not None\n")
+        
+        if self.trained:
+            return_str = "%s%s"%(return_str,"\t Model is trained\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t Model is not trained\n")
+        
+        if self.verbose:
+            return_str = "%s%s"%(return_str,"\t Verbose is True\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t Verbose is False\n")
+        return return_str
+    
+    def __repr__(self):
+        return self.__str__()
+    
+    def get_str(self):
+        return_str = 'nn_model'
+        return_str = '%s_optimizer_%s'%(return_str,self.optimizer)
+        return_str = '%s_loss_%s'%(return_str,self.loss)
+        if self.trn_params is not None:
+            return_str = '%s_%s'%(return_str,self.trn_params.get_str())
+        return return_str
+
     def fit(self, inputs, outputs, train_indexes, n_neurons=2, activation_functions=['tanh', 'softmax'], trn_params=None):
         
         """
@@ -199,22 +296,126 @@ class NeuralNetworkModel(Base):
             self.trn_params = NeuralNetworkParams()
         else:
             self.trn_params = trn_params
-            
-        aux_model = Sequential()
-        aux_model.add(Dense(n_neurons,input_dim=inputs.shape[1],kernel_initializer="uniform"))
-        aux_model.add(Activation(activation_functions[0]))
-        aux_model.add(Dense(outputs.shape[1], input_dim=n_neurons, kernel_initializer="uniform"))
-        aux_model.add(Activation(activation_functions[1]))
         
-        opt = None
         
-        if self.optimizer == 'sgd':
-            opt = SGD(lr=self.trn_params.learning_rate, 
-                      decay=self.trn_params.learning_decay, 
-                      momentum=self.trn_params.momentum, 
-                      nesterov=self.trn_params.nesterov)
+        min_loss = 9999
+        
+        for i_init in range(self.trn_params.n_inits):
+            if self.trn_params.verbose:
+                print 'Neural Network Model - train %i initialization'%(i_init+1)
+            aux_model = Sequential()
+            aux_model.add(Dense(n_neurons,input_dim=inputs.shape[1],kernel_initializer="uniform"))
+            aux_model.add(Activation(activation_functions[0]))
+            aux_model.add(Dense(outputs.shape[1], input_dim=n_neurons, kernel_initializer="uniform"))
+            aux_model.add(Activation(activation_functions[1]))
+        
+            opt = None
+        
+            if self.optimizer == 'sgd':
+                opt = SGD(lr=self.trn_params.learning_rate, 
+                          decay=self.trn_params.learning_decay, 
+                          momentum=self.trn_params.momentum, 
+                          nesterov=self.trn_params.nesterov)
+            if self.optimizer == 'rmsprop':
+                opt = RMSprop(lr=self.trn_params.learning_rate, 
+                          rho=self.trn_params.rho, 
+                          epsilon=self.trn_params.epsilon, 
+                          decay=0.0)
     
-        aux_model.compile(loss='mean_squared_error', optimizer=opt)
+    
+            aux_model.compile(loss='mean_squared_error', optimizer=opt, metrics=self.metrics)
+        
+            # early stopping control
+            earlyStopping = callbacks.EarlyStopping(monitor='val_loss',
+                                                    patience=self.trn_params.train_patience,
+                                                    verbose=self.trn_params.train_verbose,
+                                                    mode='auto')
+        
+            aux_desc = aux_model.fit(inputs[train_indexes[0],:], 
+                                      outputs[train_indexes[0],:],
+                                      epochs=self.trn_params.n_epochs,
+                                      batch_size=self.trn_params.batch_size,
+                                      callbacks=[earlyStopping],
+                                      verbose=self.trn_params.train_verbose,
+                                      validation_data=(inputs[train_indexes[1],:], 
+                                                       outputs[train_indexes[1],:]),
+                                      shuffle=True)
+            if min_loss > np.min(aux_desc.history['val_loss']):
+                if self.trn_params.verbose:
+                    print ('min loss: %1.5f, model loss: %1.5f'%
+                           (min_loss, np.min(aux_desc.history['val_loss'])))
 
-        self.model = aux_model
-        return 1
+                min_loss = np.min(aux_desc.history['val_loss'])
+                
+                self.model = aux_model
+                self.trn_desc = aux_desc.history
+                self.trained = True
+        return +1
+    def save(self, filename, path="."):
+        """
+            Neural Network Save Function
+            
+            filename: basic file name all files will contend it
+            path: where to store this files
+            
+        """
+        if not self.trained:
+            if self.verbose:
+                print "Neural Network Model Class - Save Function: No trained model"
+            return -1
+        
+        if filename is None:
+            if self.verbose:
+                print "Neural Network Model Class - Save Function: No file name"
+            return -1
+        
+        #trn_params
+        self.trn_params.save('%s_trn_params.pickle'%(filename),path=path)
+        #model 
+        # serialize model to JSON
+        model_json = self.model.to_json()
+        with open("%s/%s_model.json"%(path,filename), "w") as json_file:
+                json_file.write(model_json)
+        # serialize weights to HDF5
+        self.model.save_weights("%s/%s_model.h5"%(path,filename))
+        
+        #trn_desc
+        pickle.dump([self.trn_desc], open("%s/%s_trn_desc.pickle"%(path,filename), "wb"))
+        
+    def load(self, filename, path="."):
+        """
+            Neural Network Load Function
+            
+            filename: basic file name all files will contend it
+            path: where to store this files
+            
+        """
+        if filename is None:
+            if self.verbose:
+                print "Neural Network Model Class - Save Function: No file name"
+            return -1
+            
+        #trn_params
+        self.trn_params = NeuralNetworkParams()
+        self.trn_params.load('%s_trn_params.pickle'%(filename),path=path)
+        
+        #model
+        json_file = open("%s/%s_model.json"%(path,filename), 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        loaded_model = model_from_json(loaded_model_json)
+        loaded_model.load_weights("%s/%s_model.h5"%(path,filename))
+        self.model = loaded_model
+        self.trained = True
+        #trn_desc
+        self.trn_desc = None
+        self.trn_desc = pickle.load(open("%s/%s_trn_desc.pickle"%(path,filename), "rb"))
+
+    def predict(self, inputs):
+        """
+            Neural Network Predict Function
+            
+            inputs: normalized input matrix (events X features)
+        """ 
+        
+        return self.model.predict(inputs)
