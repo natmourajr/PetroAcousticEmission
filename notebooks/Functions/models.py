@@ -17,6 +17,8 @@ from keras.models import load_model
 from keras import backend as K
 from keras.models import model_from_json
 
+from sklearn.cluster import KMeans
+
 
 
 class BaseParams(object):
@@ -54,6 +56,68 @@ class BaseParams(object):
         if self.verbose:
             print "Base Parameter Load"
         return 0
+
+class Base(object):
+
+    """
+        Base Machine Learning model class
+    """
+    
+    def __init__(self, verbose=False):
+        if verbose: 
+            print "Base Model Constructor"
+        self.verbose = verbose
+        self.model = None
+        
+    def load(self,path=""):
+        if not os.path.exists(path):
+            if self.verbose:
+                print "No valid path"
+                return -1
+        if path == "":
+             if self.verbose:
+                    print "No valid path"
+                    return -1
+        else:
+            if self.verbose:
+                print "Base Model Load"
+                return self.model
+            
+    def save(self, path=""):
+        if path == "" and self.verbose:
+            print "No valid path"
+        if self.model is None and self.verbose:
+            print "No model path"    
+                
+        else:
+            if self.verbose:
+                print "Base Model Save"
+                
+    def fit(self):
+        if verbose: 
+            print "Base Model Fit"
+        return 0
+    
+    def predict(self, input):
+        if verbose: 
+            print "Base Model Predict"
+        return 0
+                
+    def __str__(self):
+        return_str =  "Base Model Print \n"
+        if self.model is None:
+            return_str = "%s%s"%(return_str,"\t Model is None\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t Model is not None\n")
+        if self.verbose:
+            return_str = "%s%s"%(return_str,"\t Verbose is True\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t Verbose is False\n")
+        return return_str
+    
+    def __repr__(self):
+        return self.__str__()
+    
     
 class NeuralNetworkParams(BaseParams):
     """
@@ -156,69 +220,7 @@ class NeuralNetworkParams(BaseParams):
          self.verbose, self.n_epochs, self.n_inits, 
          self.batch_size] = pickle.load(open("%s/%s"%(path,filename), "rb"))
         return 0        
-class Base(object):
 
-    """
-        Base Machine Learning model class
-    """
-    
-    def __init__(self, verbose=False):
-        if verbose: 
-            print "Base Model Constructor"
-        self.verbose = verbose
-        self.model = None
-        
-    def load(self,path=""):
-        if not os.path.exists(path):
-            if self.verbose:
-                print "No valid path"
-                return -1
-        if path == "":
-             if self.verbose:
-                    print "No valid path"
-                    return -1
-        else:
-            if self.verbose:
-                print "Base Model Load"
-                return self.model
-            
-    def save(self, path=""):
-        if path == "" and self.verbose:
-            print "No valid path"
-        if self.model is None and self.verbose:
-            print "No model path"    
-                
-        else:
-            if self.verbose:
-                print "Base Model Save"
-                
-    def fit(self):
-        if verbose: 
-            print "Base Model Fit"
-        return 0
-    
-    def predict(self, input):
-        if verbose: 
-            print "Base Model Predict"
-        return 0
-                
-    def __str__(self):
-        return_str =  "Base Model Print \n"
-        if self.model is None:
-            return_str = "%s%s"%(return_str,"\t Model is None\n")
-        else:
-            return_str = "%s%s"%(return_str,"\t Model is not None\n")
-        if self.verbose:
-            return_str = "%s%s"%(return_str,"\t Verbose is True\n")
-        else:
-            return_str = "%s%s"%(return_str,"\t Verbose is False\n")
-        return return_str
-    
-    def __repr__(self):
-        return self.__str__()
-    
-
-# criar a classe de treinamento neural
 
 class NeuralNetworkModel(Base):
     """
@@ -419,3 +421,256 @@ class NeuralNetworkModel(Base):
         """ 
         
         return self.model.predict(inputs)
+    
+
+class KMeansParams(BaseParams):
+    """
+        KMeans Train Parameters Classes
+    """
+    
+    
+    def __init__(self, init="k-means++", 
+                 n_init=10, max_iter=300, 
+                 tol=0.0001, precompute_distances="auto", 
+                 random_state=None, copy_x=True, n_jobs=1, 
+                 algorithm="auto", verbose=False):
+        self.init = init
+        self.n_init = n_init
+        self.max_iter = max_iter
+        self.tol = tol
+        self.precompute_distances = precompute_distances
+        self.random_state = random_state
+        self.copy_x = copy_x
+        self.n_jobs = n_jobs
+        self.algorithm = algorithm
+        self.verbose = verbose
+        
+    def __str__(self):
+        return_str = 'KMeans Params Class\n'
+        return_str = '%s%s'%(return_str,('\t Method for initialization: %s\n'%(self.init)))
+        return_str = '%s%s'%(return_str,('\t Number of times will be run: %i\n'%(self.n_init)))
+        return_str = '%s%s'%(return_str,('\t Maximum number of iterations: %i\n'%(self.max_iter)))
+        return_str = '%s%s'%(return_str,('\t Relative tolerance to convergence: %1.5f\n'%(self.tol)))
+        return_str = '%s%s'%(return_str,('\t Precompute distances (faster but takes more memory): %s\n'%(self.precompute_distances)))
+        
+        if self.random_state is None:
+            return_str = '%s%s'%(return_str,'\t Random State is None\n') 
+        else:
+            return_str = '%s%s'%(return_str,'\t Random State is not None\n') 
+        
+        if self.copy_x:
+            return_str = '%s%s'%(return_str,'\t Copy_x: The original data is not modified is None\n') 
+        else:
+            return_str = '%s%s'%(return_str,'\t Copy_x: The original data is modified\n') 
+        
+        return_str = '%s%s'%(return_str,('\t The number of jobs to use for the computation: %i\n'%(self.n_jobs)))
+        return_str = '%s%s'%(return_str,('\t K-means algorithm: %s\n'%(self.algorithm)))
+        
+        
+        if self.verbose:
+            return_str = '%s%s'%(return_str,'\t Verbose: True\n')
+        else:
+            return_str = '%s%s'%(return_str,'\t Verbose: False\n')
+            
+        return return_str
+    
+    def get_str(self):
+        return_str = 'kmeans_params'
+        return_str = '%s_init_%s'%(return_str,(self.init.replace('-','_')).replace('+',''))
+        return_str = '%s_n_init_%s'%(return_str,('%i'%self.n_init))
+        return_str = '%s_max_iter_%s'%(return_str,('%i'%self.max_iter))
+        return_str = '%s_tol_%s'%(return_str,('%1.5f'%self.tol).replace('.','_'))
+        return_str = '%s_pre_dist_%s'%(return_str,(self.precompute_distances))
+        return_str = '%s_max_iter_%s'%(return_str,('%i'%self.n_jobs))
+        return_str = '%s_pre_dist_%s'%(return_str,(self.algorithm))
+        return return_str
+
+    def save(self, filename, path="."):
+        if filename is None:
+            if self.verbose:
+                print "KMeans Params Class - Save Function: No file name"
+            return -1
+        pickle.dump([self.init, self.n_init, self.max_iter, self.tol, 
+                     self.precompute_distances, self.random_state, 
+                     self.copy_x, self.n_jobs, self.algorithm
+                    ], open("%s/%s"%(path,filename), "wb"))
+        return 1
+    
+    def load(self, filename, path="."):
+        if filename is None:
+            if self.verbose:
+                print "Neural Network Params Class - Load Function: No file name"
+            return -1
+        [self.init, self.n_init, self.max_iter, self.tol, 
+         self.precompute_distances, self.random_state, 
+         self.copy_x, self.n_jobs, 
+         self.algorithm] = pickle.load(open("%s/%s"%(path,filename), "rb"))
+        return 0        
+
+    
+class KMeansModel(Base):
+    """
+        KMeans Model Class
+    """
+    
+    def __init__(self, verbose=False):
+        if verbose: 
+            print "KMeans Model Constructor"
+        self.verbose = verbose
+        self.n_clusters = 0
+        self.model = None
+        self.cluster_classes = None
+        self.classes_per_clusters = None
+        self.trn_desc = None    
+        self.trn_params = None
+        self.trained = False
+    
+    def __str__(self):
+        return_str =  "KMeans Model Print \n"
+        if self.model is None:
+            return_str = "%s%s"%(return_str,"\t no Model\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t there is a Model\n")
+        
+        if self.trn_desc is None:
+            return_str = "%s%s"%(return_str,"\t no Train Descriptor\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t there is a Train Descriptor\n")
+        
+        if self.trained:
+            return_str = "%s%s"%(return_str,"\t Model is trained\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t Model is not trained\n")
+        
+        if self.verbose:
+            return_str = "%s%s"%(return_str,"\t Verbose is True\n")
+        else:
+            return_str = "%s%s"%(return_str,"\t Verbose is False\n")
+        return return_str
+    
+    def __repr__(self):
+        return self.__str__()
+    
+    def get_str(self):
+        return_str = 'kmeans_model'
+        return_str = '%s_nclusters_%s'%(return_str,self.n_clusters)
+        return return_str
+
+    def fit(self, inputs, outputs,  n_clusters=2, trn_params=None):
+        
+        """
+            KMeans Fit Function
+            
+            inputs: normalized input matrix (events X features)
+            outputs: numerical output matrix (events X 1)
+            n_clusters: integer 
+            trn_params: training parameters (KMeansParams obj)
+            
+        """ 
+        if self.trained is True:
+            if self.verbose:
+                print "Model Already trained"
+            return -1
+        if inputs is None or outputs is None:
+            if self.verbose is False:
+                print "Invalid function inputs"
+            return -1
+        if trn_params is None:
+            self.trn_params = KMeansParams()
+        else:
+            self.trn_params = trn_params
+        
+    
+        aux_model = KMeans(n_clusters=n_clusters, random_state=self.trn_params.random_state)
+        aux_model.fit_predict(inputs)
+        
+        self.model = aux_model
+        self.trained = True
+        
+        #color the clusters
+        classes_per_clusters = np.zeros([len(np.unique(outputs)), n_clusters])
+        
+        for i, iclass in enumerate(np.unique(outputs)):
+            for j in range(n_clusters):
+                classes_per_clusters[i,j] = ((np.sum(aux_model.predict(inputs[outputs==iclass])==j).astype('float'))/
+                                             (np.sum(aux_model.predict(inputs)==j).astype('float')))
+                
+        self.cluster_classes = np.argmax(classes_per_clusters,axis=0)
+        self.classes_per_clusters = classes_per_clusters
+        return +1
+    
+    def save(self, filename, path="."):
+        """
+            KMeans Save Function
+            
+            filename: basic file name all files will contend it
+            path: where to store this files
+            
+        """
+        if not self.trained:
+            if self.verbose:
+                print "KMeans Model Class - Save Function: No trained model"
+            return -1
+        
+        if filename is None:
+            if self.verbose:
+                print "KMean Model Class - Save Function: No file name"
+            return -1
+        
+        #trn_params
+        self.trn_params.save('%s_trn_params.pickle'%(filename),path=path)
+        #model 
+        joblib.dump([self.model],"%s/%s_model.jbl"%(path,filename), compress=9)
+        
+        
+    def load(self, filename, path="."):
+        """
+            KMeans Load Function
+            
+            filename: basic file name all files will contend it
+            path: where to store this files
+            
+        """
+        if filename is None:
+            if self.verbose:
+                print "KMeans Model Class - Save Function: No file name"
+            return -1
+            
+        #model
+        [self.model] = joblib.load("%s/%s_model.jbl"%(path,filename))
+
+    def predict_cluster(self, inputs):
+        """
+            KMeans Predict Clusters Function
+            
+            This Function return the cluster indexes per event
+            
+            inputs: normalized input matrix (events X features)
+        """ 
+        if not self.trained:
+            if self.verbose:
+                print "KMeans Model Class - Predict Cluster Function: No trained model"
+            return -1
+        
+        
+        return self.model.predict(inputs)
+
+    
+    def predict_class(self, inputs):
+        """
+            KMeans Predict Clusters Function
+            
+            This Function return the class with more occurrences in cluster activated by events
+            
+            inputs: normalized input matrix (events X features)
+        """ 
+        if not self.trained:
+            if self.verbose:
+                print "KMeans Model Class - Predict Class Function: No trained model"
+            return -1
+        
+        
+        return self.cluster_classes[self.model.predict(inputs)]
+
+
+
