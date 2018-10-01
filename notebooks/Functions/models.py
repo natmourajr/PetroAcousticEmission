@@ -16,6 +16,7 @@ from keras.utils import np_utils
 from keras.models import load_model
 from keras import backend as K
 from keras.models import model_from_json
+from keras.layers import LSTM
 
 from sklearn.cluster import KMeans
 
@@ -426,7 +427,7 @@ class LSTMModel(NeuralNetworkModel):
     """
         (INCOMPLETE) Long-Short-Term-Memory Model class
     """
-    def fit(self, inputs, outputs, train_indexes, n_neurons=32, activation_functions=['tanh', 'softmax'], trn_params=None):
+    def fit(self, inputs, outputs, train_indexes, n_neurons=32, activation_functions=['tanh', 'softmax'], trn_params=None, class_weight = None):
 
         """
             LSTM Fit Function
@@ -443,7 +444,7 @@ class LSTMModel(NeuralNetworkModel):
             if self.verbose:
                 print("Model Already trained")
             return -1
-        if inputs is None or outputs is None or test_data is None:
+        if inputs is None or outputs is None or train_indexes is None:
             if self.verbose is False:
                 print("Invalid function inputs")
             return -1
@@ -458,9 +459,10 @@ class LSTMModel(NeuralNetworkModel):
 
         for i_init in range(self.trn_params.n_inits):
             if self.trn_params.verbose:
-                print('Neural Network Model - train %i initialization'%(i_init+1))
+                print('LSTM Model - train %i initialization'%(i_init+1))
             aux_model = Sequential()
             aux_model.add(LSTM(n_neurons, return_sequences = False, input_shape=(inputs.shape[1], inputs.shape[2])))
+           # aux_model.add(LSTM(n_neurons))
             aux_model.add(Dense(10, kernel_initializer="uniform"))
             aux_model.add(Activation(activation_functions[0]))
             aux_model.add(Dense(outputs.shape[1], kernel_initializer="uniform"))
@@ -497,7 +499,8 @@ class LSTMModel(NeuralNetworkModel):
                                       verbose=self.trn_params.train_verbose,
                                       validation_data=(inputs[train_indexes[1]],
                                                        outputs[train_indexes[1]]),
-                                      shuffle=False)
+                                      shuffle=False,
+                                      class_weight = class_weight)
 
             if min_loss > np.min(aux_desc.history['val_loss']):
                 if self.trn_params.verbose:
