@@ -10,7 +10,7 @@ from sklearn.externals import joblib
 
 from keras.models import Sequential
 from keras.layers.core import Dense, Activation
-from keras.optimizers import Adam, SGD, RMSprop
+from keras.optimizers import Adam, SGD, RMSprop, Nadam
 import keras.callbacks as callbacks
 from keras.utils import np_utils
 from keras.models import load_model
@@ -462,8 +462,8 @@ class LSTMModel(NeuralNetworkModel):
                 print('LSTM Model - train %i initialization'%(i_init+1))
             aux_model = Sequential()
             aux_model.add(LSTM(n_neurons, return_sequences = False, input_shape=(inputs.shape[1], inputs.shape[2])))
-           # aux_model.add(LSTM(n_neurons))
-            aux_model.add(Dense(10, kernel_initializer="uniform"))
+            #aux_model.add(LSTM(n_neurons))
+            aux_model.add(Dense(5, kernel_initializer="uniform"))
             aux_model.add(Activation(activation_functions[0]))
             aux_model.add(Dense(outputs.shape[1], kernel_initializer="uniform"))
             aux_model.add(Activation(activation_functions[1]))
@@ -480,22 +480,29 @@ class LSTMModel(NeuralNetworkModel):
                           rho=self.trn_params.rho,
                           epsilon=self.trn_params.epsilon,
                           decay=0.0)
+            if self.optimizer == 'Nadam':
+                opt = Nadam() 
+            if self.optimizer == 'adam':
+                opt = Adam()
 
 
-            aux_model.compile(loss='mean_squared_error', optimizer=opt, metrics=self.metrics)
+            aux_model.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
 
             # early stopping control
             earlyStopping = callbacks.EarlyStopping(monitor='val_loss',
                                                     patience=self.trn_params.train_patience,
                                                     verbose=self.trn_params.train_verbose,
                                                     mode='auto')
+            
+            checkpointer = callbacks.ModelCheckpoint(monitor='val_loss', filepath='../Data/lstmModel.hdf5', verbose=1, save_best_only=True)
+
 
 
             aux_desc = aux_model.fit(inputs[train_indexes[0]],
                                       outputs[train_indexes[0]],
                                       epochs=self.trn_params.n_epochs,
                                       batch_size=self.trn_params.batch_size,
-                                      callbacks=[earlyStopping],
+                                      callbacks=[checkpointer],
                                       verbose=self.trn_params.train_verbose,
                                       validation_data=(inputs[train_indexes[1]],
                                                        outputs[train_indexes[1]]),
@@ -514,6 +521,13 @@ class LSTMModel(NeuralNetworkModel):
                 self.trained = True
         return +1
 
+class Conv2DNetModel(Base):
+    """
+        2D ConvNet Model Class
+    """
+    def fit(self, filters, kernel_size,):
+        pass
+    
 class KMeansParams(BaseParams):
     """
         KMeans Train Parameters Classes
@@ -597,6 +611,7 @@ class KMeansParams(BaseParams):
          self.copy_x, self.n_jobs,
          self.algorithm] = pickle.load(open("%s/%s"%(path,filename), "rb"))
         return 0
+
 
 
 class KMeansModel(Base):
