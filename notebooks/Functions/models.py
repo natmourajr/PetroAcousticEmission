@@ -95,12 +95,12 @@ class Base(object):
                 print("Base Model Save")
 
     def fit(self):
-        if verbose:
+        if self.verbose:
             print("Base Model Fit")
         return 0
 
     def predict(self, input):
-        if verbose:
+        if self.verbose:
             print("Base Model Predict")
         return 0
 
@@ -423,11 +423,47 @@ class NeuralNetworkModel(Base):
 
         return self.model.predict(inputs)
 
-class LSTMModel(NeuralNetworkModel):
+
+
+
+class GenericBuilder():
+    def __init__(self):
+        self.base_dict = dict(units = 0, activation = None)
+        self.trained = False
+        self.verbose = False
+        self.optimizer = 'sgd'
+        self.loss = 'mse'
+        self.metrics = ['val_loss']
+
+    def build_model(self, layer_type=None, arg_dict_list=None):
+        if (arg_dict_list != None):
+            aux_model = Sequential()
+            for arg_dict, layer in zip(arg_dict_list, layer_type):
+                aux_model.add( layer(**arg_dict) )
+            self.model = aux_model
+
+    def create_arg_dict(self, n_neurons, activation_functions, additional_arguments):
+        dict_list = []
+        for neurons, act_func, adc_args in zip(n_neurons, activation_functions, additional_arguments):
+            aux_dict = dict(units = neurons, activation = act_func)
+            aux_dict.update(adc_args)
+            dict_list.append(aux_dict)
+
+        return dict_list
+
+class LSTMModel(GenericBuilder):
     """
         (INCOMPLETE) Long-Short-Term-Memory Model class
     """
-    def fit(self, inputs, outputs, train_indexes, n_neurons=32, activation_functions=['tanh', 'softmax'], trn_params=None, class_weight = None):
+
+    def __init__(self, input_shape,  n_neurons=[8, 10, 3], layer_type=[LSTM, Dense, Dense] , activation_functions=['hard_sigmoid', 'tanh', 'softmax']):
+
+        arg_list = [dict(input_shape = input_shape, return_sequences = False), {}, {}]
+        arg_list = self.create_arg_dict(n_neurons, activation_functions, arg_list)
+
+        self.build_model(layer_type = layer_type, arg_dict_list=arg_list)
+        
+    def fit(self, inputs, outputs, train_indexes, trn_params=None, class_weight = None):
 
         """
             LSTM Fit Function
@@ -460,13 +496,7 @@ class LSTMModel(NeuralNetworkModel):
         for i_init in range(self.trn_params.n_inits):
             if self.trn_params.verbose:
                 print('LSTM Model - train %i initialization'%(i_init+1))
-            aux_model = Sequential()
-            aux_model.add(LSTM(n_neurons, return_sequences = False, input_shape=(inputs.shape[1], inputs.shape[2])))
-            #aux_model.add(LSTM(n_neurons))
-            aux_model.add(Dense(5, kernel_initializer="uniform"))
-            aux_model.add(Activation(activation_functions[0]))
-            aux_model.add(Dense(outputs.shape[1], kernel_initializer="uniform"))
-            aux_model.add(Activation(activation_functions[1]))
+            aux_model = self.model
 
             opt = None
 
@@ -516,9 +546,11 @@ class LSTMModel(NeuralNetworkModel):
 
                 min_loss = np.min(aux_desc.history['val_loss'])
 
-                self.model = aux_model
+                min_model = aux_model
                 self.trn_desc = aux_desc.history
-                self.trained = True
+              
+        self.model = min_model
+        self.trained = True
         return +1
 
 class Conv2DNetModel(Base):
@@ -604,7 +636,7 @@ class KMeansParams(BaseParams):
     def load(self, filename, path="."):
         if filename is None:
             if self.verbose:
-                print("Neural Network Params Class - Load Function: No file name")
+                print("KMeans Params Class - Load Function: No file name")
             return -1
         [self.init, self.n_init, self.max_iter, self.tol,
          self.precompute_distances, self.random_state,
