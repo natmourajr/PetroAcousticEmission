@@ -17,9 +17,7 @@ from keras.models import load_model
 from keras import backend as K
 from keras.models import model_from_json
 from keras.layers import LSTM
-
 from sklearn.cluster import KMeans
-
 
 
 class BaseParams(object):
@@ -428,17 +426,22 @@ class NeuralNetworkModel(Base):
 
 class GenericBuilder():
     def __init__(self):
+        self.model = None
         self.base_dict = dict(units = 0, activation = None)
         self.trained = False
         self.verbose = False
-        self.optimizer = 'sgd'
-        self.loss = 'mse'
-        self.metrics = ['val_loss']
+        self.optimizer = None
+        self.loss = None
+        self.metrics = None
+        self.n_inits = None
+        self.batch_size = None
 
     def build_model(self, layer_type=None, arg_dict_list=None):
         if (arg_dict_list != None):
             aux_model = Sequential()
             for arg_dict, layer in zip(arg_dict_list, layer_type):
+                print(layer)
+                print(arg_dict)
                 aux_model.add( layer(**arg_dict) )
             self.model = aux_model
 
@@ -451,9 +454,79 @@ class GenericBuilder():
 
         return dict_list
 
+    def clear_model(self):
+        self.__init__()
+
+    def save(self, filename, path = '.'):
+        model_json = self.model.to_json()
+        with open("%s/%s_model.json"%(path,filename), "w") as json_file:
+            json_file.write(model_json)
+        # serialize weights to HDF5
+        self.model.save_weights("%s/%s_model.h5"%(path,filename))
+
+
+class TrainingParameters():
+    def __init__(self, *args, **kwargs):
+        self.model_description = None
+        self.training_description = None
+        self.description_list = ['Empty Description']
+
+        if (kwargs.get('filename') != None and kwargs.get('path')!=None):
+            self.load(kwargs.get('filename'), kwargs.get('path'))
+
+            
+    def __str__(self):
+        for desc in  self.description_list:
+            print(desc)
+
+    def get_str(self):
+        return_str = self.model_description
+        for key,value in self.__dict__.items():
+            if (key=="model_description" or key=="training_description"  or key=="description_list"):
+                pass
+            else:
+                if isinstance(value,bool):
+                    return_str = '{}_{}_{}'.format(return_str,key,value)
+                else:
+                    return_str = '{}_{}_{0:1.5f}'.format(return_str,key,value)
+        return_str = return_str.replace('.','_')
+
+    def save(self, filename, path='.'):
+        pickle.dump(self, open("%s/%s"%(path,filename), "wb"))
+
+    def load(self, filename, path='.'):
+        loaded_class = pickle.load(open("%s/%s"%(path,filename), "rb"))
+        self.__dict__.update(loaded_class.__dict__)
+
+class NeuralNetworkParamsCyfer(TrainingParameters):
+
+    def __init__(self, learning_rate=0.01,
+                 learning_decay=1e-6, momentum=0.9,
+                 nesterov=True, rho=0.9, epsilon=None,
+                 train_verbose=False, train_patience = 50,
+                 verbose= False, n_epochs=500, n_inits=1, batch_size=8, *args, **kwargs):
+        
+        self.lr = learning_rate
+        self.ld = learning_decay
+        self.momentum = momentum
+        self.nesterov = nesterov
+        self.rho = rho
+        self.epsilon = epsilon
+        self.train_verbose = train_verbose
+        self.train_patience = train_patience
+        self.verbose = verbose
+        self.n_epochs = n_epochs
+        self.n_inits = n_inits
+        self.batch_size = batch_size
+
+        super().__init__(*args, **kwargs)
+
+
+
 class LSTMModel(GenericBuilder):
     """
         (INCOMPLETE) Long-Short-Term-Memory Model class
+
     """
 
     def __init__(self, input_shape,  n_neurons=[8, 10, 3], layer_type=[LSTM, Dense, Dense] , activation_functions=['hard_sigmoid', 'tanh', 'softmax']):
@@ -462,7 +535,8 @@ class LSTMModel(GenericBuilder):
         arg_list = self.create_arg_dict(n_neurons, activation_functions, arg_list)
 
         self.build_model(layer_type = layer_type, arg_dict_list=arg_list)
-        
+
+
     def fit(self, inputs, outputs, train_indexes, trn_params=None, class_weight = None):
 
         """
@@ -552,6 +626,7 @@ class LSTMModel(GenericBuilder):
         self.model = min_model
         self.trained = True
         return +1
+
 
 class Conv2DNetModel(Base):
     """
