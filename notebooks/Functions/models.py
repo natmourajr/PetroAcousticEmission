@@ -421,213 +421,6 @@ class NeuralNetworkModel(Base):
 
         return self.model.predict(inputs)
 
-
-
-
-class GenericBuilder():
-    def __init__(self):
-        self.model = None
-        self.base_dict = dict(units = 0, activation = None)
-        self.trained = False
-        self.verbose = False
-        self.optimizer = None
-        self.loss = None
-        self.metrics = None
-        self.n_inits = None
-        self.batch_size = None
-
-    def build_model(self, layer_type=None, arg_dict_list=None):
-        if (arg_dict_list != None):
-            aux_model = Sequential()
-            for arg_dict, layer in zip(arg_dict_list, layer_type):
-                print(layer)
-                print(arg_dict)
-                aux_model.add( layer(**arg_dict) )
-            self.model = aux_model
-
-    def create_arg_dict(self, n_neurons, activation_functions, additional_arguments):
-        dict_list = []
-        for neurons, act_func, adc_args in zip(n_neurons, activation_functions, additional_arguments):
-            aux_dict = dict(units = neurons, activation = act_func)
-            aux_dict.update(adc_args)
-            dict_list.append(aux_dict)
-
-        return dict_list
-
-    def clear_model(self):
-        self.__init__()
-
-    def save(self, filename, path = '.'):
-        model_json = self.model.to_json()
-        with open("%s/%s_model.json"%(path,filename), "w") as json_file:
-            json_file.write(model_json)
-        # serialize weights to HDF5
-        self.model.save_weights("%s/%s_model.h5"%(path,filename))
-
-
-class TrainingParameters():
-    def __init__(self, *args, **kwargs):
-        self.model_description = None
-        self.training_description = None
-        self.description_list = ['Empty Description']
-
-        if (kwargs.get('filename') != None and kwargs.get('path')!=None):
-            self.load(kwargs.get('filename'), kwargs.get('path'))
-
-            
-    def __str__(self):
-        for desc in  self.description_list:
-            print(desc)
-
-    def get_str(self):
-        return_str = self.model_description
-        for key,value in self.__dict__.items():
-            if (key=="model_description" or key=="training_description"  or key=="description_list"):
-                pass
-            else:
-                if isinstance(value,bool):
-                    return_str = '{}_{}_{}'.format(return_str,key,value)
-                else:
-                    return_str = '{}_{}_{0:1.5f}'.format(return_str,key,value)
-        return_str = return_str.replace('.','_')
-
-    def save(self, filename, path='.'):
-        pickle.dump(self, open("%s/%s"%(path,filename), "wb"))
-
-    def load(self, filename, path='.'):
-        loaded_class = pickle.load(open("%s/%s"%(path,filename), "rb"))
-        self.__dict__.update(loaded_class.__dict__)
-
-class NeuralNetworkParamsCyfer(TrainingParameters):
-
-    def __init__(self, learning_rate=0.01,
-                 learning_decay=1e-6, momentum=0.9,
-                 nesterov=True, rho=0.9, epsilon=None,
-                 train_verbose=False, train_patience = 50,
-                 verbose= False, n_epochs=500, n_inits=1, batch_size=8, *args, **kwargs):
-        
-        self.lr = learning_rate
-        self.ld = learning_decay
-        self.momentum = momentum
-        self.nesterov = nesterov
-        self.rho = rho
-        self.epsilon = epsilon
-        self.train_verbose = train_verbose
-        self.train_patience = train_patience
-        self.verbose = verbose
-        self.n_epochs = n_epochs
-        self.n_inits = n_inits
-        self.batch_size = batch_size
-
-        super().__init__(*args, **kwargs)
-
-
-
-class LSTMModel(GenericBuilder):
-    """
-        (INCOMPLETE) Long-Short-Term-Memory Model class
-
-    """
-
-    def __init__(self, input_shape,  n_neurons=[8, 10, 3], layer_type=[LSTM, Dense, Dense] , activation_functions=['hard_sigmoid', 'tanh', 'softmax']):
-
-        arg_list = [dict(input_shape = input_shape, return_sequences = False), {}, {}]
-        arg_list = self.create_arg_dict(n_neurons, activation_functions, arg_list)
-
-        self.build_model(layer_type = layer_type, arg_dict_list=arg_list)
-
-
-    def fit(self, inputs, outputs, train_indexes, trn_params=None, class_weight = None):
-
-        """
-            LSTM Fit Function
-
-            inputs: normalized input matrix (events X timesteps x features)
-            output: categarical (max sparse) output matrix (events X classes)
-            n_neurons: integer
-            activation_functions:
-            trn_params: training parameters (NeuralNetworkParams obj)
-
-        """
-
-        if self.trained is True:
-            if self.verbose:
-                print("Model Already trained")
-            return -1
-        if inputs is None or outputs is None or train_indexes is None:
-            if self.verbose is False:
-                print("Invalid function inputs")
-            return -1
-        if trn_params is None:
-            self.trn_params = NeuralNetworkParams()
-        else:
-            self.trn_params = trn_params
-
-
-        min_loss = 9999
-
-
-        for i_init in range(self.trn_params.n_inits):
-            if self.trn_params.verbose:
-                print('LSTM Model - train %i initialization'%(i_init+1))
-            aux_model = self.model
-
-            opt = None
-
-            if self.optimizer == 'sgd':
-                opt = SGD(lr=self.trn_params.learning_rate,
-                          decay=self.trn_params.learning_decay,
-                          momentum=self.trn_params.momentum,
-                          nesterov=self.trn_params.nesterov)
-            if self.optimizer == 'rmsprop':
-                opt = RMSprop(lr=self.trn_params.learning_rate,
-                          rho=self.trn_params.rho,
-                          epsilon=self.trn_params.epsilon,
-                          decay=0.0)
-            if self.optimizer == 'Nadam':
-                opt = Nadam() 
-            if self.optimizer == 'adam':
-                opt = Adam()
-
-
-            aux_model.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
-
-            # early stopping control
-            earlyStopping = callbacks.EarlyStopping(monitor='val_loss',
-                                                    patience=self.trn_params.train_patience,
-                                                    verbose=self.trn_params.train_verbose,
-                                                    mode='auto')
-            
-            checkpointer = callbacks.ModelCheckpoint(monitor='val_loss', filepath='../Data/lstmModel.hdf5', verbose=1, save_best_only=True)
-
-
-
-            aux_desc = aux_model.fit(inputs[train_indexes[0]],
-                                      outputs[train_indexes[0]],
-                                      epochs=self.trn_params.n_epochs,
-                                      batch_size=self.trn_params.batch_size,
-                                      callbacks=[checkpointer],
-                                      verbose=self.trn_params.train_verbose,
-                                      validation_data=(inputs[train_indexes[1]],
-                                                       outputs[train_indexes[1]]),
-                                      shuffle=False,
-                                      class_weight = class_weight)
-
-            if min_loss > np.min(aux_desc.history['val_loss']):
-                if self.trn_params.verbose:
-                    print(('min loss: %1.5f, model loss: %1.5f'%
-                           (min_loss, np.min(aux_desc.history['val_loss']))))
-
-                min_loss = np.min(aux_desc.history['val_loss'])
-
-                min_model = aux_model
-                self.trn_desc = aux_desc.history
-              
-        self.model = min_model
-        self.trained = True
-        return +1
-
-
 class Conv2DNetModel(Base):
     """
         2D ConvNet Model Class
@@ -884,3 +677,237 @@ class KMeansModel(Base):
 
 
         return self.cluster_classes[self.model.predict(inputs)]
+
+
+
+
+
+class GenericBuilder():
+    def __init__(self):
+        self.model = None
+        self.base_dict = dict(units = 0, activation = None)
+        self.trained = False
+        self.verbose = False
+        self.optimizer = None
+        self.loss = None
+        self.metrics = None
+        self.n_inits = None
+        self.batch_size = None
+
+    def build_model(self, layer_type=None, arg_dict_list=None):
+        if (arg_dict_list != None):
+            aux_model = Sequential()
+            for arg_dict, layer in zip(arg_dict_list, layer_type):
+                print(layer)
+                print(arg_dict)
+                aux_model.add( layer(**arg_dict) )
+            self.model = aux_model
+
+    def create_arg_dict(self, n_neurons, activation_functions, additional_arguments):
+        dict_list = []
+        for neurons, act_func, adc_args in zip(n_neurons, activation_functions, additional_arguments):
+            aux_dict = dict(units = neurons, activation = act_func)
+            aux_dict.update(adc_args)
+            dict_list.append(aux_dict)
+
+        return dict_list
+
+    def clear_model(self):
+        self.__init__()
+
+    def save(self, filename, path = '.'):
+        model_json = self.model.to_json()
+        with open("%s/%s_model.json"%(path,filename), "w") as json_file:
+            json_file.write(model_json)
+        # serialize weights to HDF5
+        self.model.save_weights("%s/%s_model.h5"%(path,filename))
+
+
+class TrainingParameters():
+    def __init__(self, *args, **kwargs):
+        self.model_description = None
+        self.description_list = ['Empty Description']
+
+        if (kwargs.get('filename') != None and kwargs.get('path')!=None):
+            self.load(kwargs.get('filename'), kwargs.get('path'))
+
+    def __str__(self):
+        for desc in self.description_list:
+            print(desc)
+
+    def get_str(self):
+        return_str = self.model_description
+        for key,value in self.__dict__.items():
+            if (key=="model_description" or key=="training_description"  or key=="description_list"):
+                pass
+            else:
+                if (isinstance(value,bool) or value==None):
+                    return_str = '{}_{}_{}'.format(return_str,key,value)
+                else:
+                    return_str = '{0}_{1}_{2:1.5f}'.format(return_str,key,value)
+        return_str = return_str.replace('.','_')
+        return return_str
+
+    def save(self, filename, path='.'):
+        pickle.dump(self, open("%s/%s"%(path,filename), "wb"))
+
+    def load(self, filename, path='.'):
+        loaded_class = pickle.load(open("%s/%s"%(path,filename), "rb"))
+        self.__dict__.update(loaded_class.__dict__)
+
+class NeuralNetworkParamsCyfer(TrainingParameters):
+
+    def __init__(self, learning_rate=0.01,
+                 learning_decay=1e-6, momentum=0.9,
+                 nesterov=True, rho=0.9, epsilon=None,
+                 train_verbose=False, train_patience = 50,
+                 verbose= False, n_epochs=500, n_inits=1, batch_size=8, *args, **kwargs):
+        
+        self.lr = learning_rate
+        self.ld = learning_decay
+        self.momentum = momentum
+        self.nesterov = nesterov
+        self.rho = rho
+        self.epsilon = epsilon
+        self.train_verbose = train_verbose
+        self.train_patience = train_patience
+        self.verbose = verbose
+        self.n_epochs = n_epochs
+        self.n_inits = n_inits
+        self.batch_size = batch_size
+
+        super().__init__(*args, **kwargs)
+        self.description_list = []
+        self.model_description = 'nn_params'
+
+        self.description_list.append('Neural Network Params Class')
+        self.description_list.append('\t Learning Rate: {0:1.5f} '.format(self.lr))
+        self.description_list.append('\t Learning Decay: {0:1.5f} '.format(self.ld))
+        self.description_list.append('\t Momentum: {0:1.5f} '.format(self.momentum))
+        self.description_list.append('\t Nesterov: {}'.format(self.nesterov))
+        self.description_list.append('\t Rho: {0:1.5f} '.format(self.rho))
+        self.description_list.append('\t Epsilon: {}'.format(self.epsilon))
+        self.description_list.append('\t Verbose: {}'.format(self.verbose))
+        self.description_list.append('\t Train Verbose: {}'.format(self.train_verbose))
+        self.description_list.append('\t Epochs: {}'.format(self.n_epochs))
+        self.description_list.append('\t Patience: {}'.format(self.train_patience))
+        self.description_list.append('\t Inits: {}'.format(self.n_inits))
+        self.description_list.append('\t Batch Size: {}'.format(self.batch_size))
+
+
+class LSTMParams(NeuralNetworkParamsCyfer):
+    def __init_(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.description_list[0] = 'LSTM Network Params Class'
+        self.model_description = 'lstm_params'
+
+
+
+class LSTMModel(GenericBuilder):
+    """
+        (INCOMPLETE) Long-Short-Term-Memory Model class
+
+    """
+
+    def __init__(self, input_shape,  n_neurons=[8, 10, 3], layer_type=[LSTM, Dense, Dense] , activation_functions=['hard_sigmoid', 'tanh', 'softmax']):
+
+        arg_list = [dict(input_shape = input_shape, return_sequences = False), {}, {}]
+        arg_list = self.create_arg_dict(n_neurons, activation_functions, arg_list)
+
+        self.build_model(layer_type = layer_type, arg_dict_list=arg_list)
+
+        self.model.loss = 'mse'
+        self.model.optimizer = 'RMSProp'
+        self.metrics = ['accuracy']
+        self.trained = False
+
+    def fit(self, inputs, outputs, train_indexes, trn_params=None, class_weight = None):
+
+        """
+            LSTM Fit Function
+
+            inputs: normalized input matrix (events X timesteps x features)
+            output: categarical (max sparse) output matrix (events X classes)
+            n_neurons: integer
+            activation_functions:
+            trn_params: training parameters (NeuralNetworkParams obj)
+
+        """
+
+        if self.trained is True:
+            if self.verbose:
+                print("Model Already trained")
+            return -1
+        if inputs is None or outputs is None or train_indexes is None:
+            if self.verbose is False:
+                print("Invalid function inputs")
+            return -1
+        if trn_params is None:
+            self.trn_params = LSTMParams()
+        else:
+            self.trn_params = trn_params
+
+
+        min_loss = 9999
+
+
+        for i_init in range(self.trn_params.n_inits):
+            if self.trn_params.verbose:
+                print('LSTM Model - train %i initialization'%(i_init+1))
+            aux_model = self.model
+
+            opt = None
+
+            if self.optimizer == 'sgd':
+                opt = SGD(lr=self.trn_params.learning_rate,
+                          decay=self.trn_params.learning_decay,
+                          momentum=self.trn_params.momentum,
+                          nesterov=self.trn_params.nesterov)
+            if self.optimizer == 'rmsprop':
+                opt = RMSprop(lr=self.trn_params.learning_rate,
+                          rho=self.trn_params.rho,
+                          epsilon=self.trn_params.epsilon,
+                          decay=0.0)
+            if self.optimizer == 'Nadam':
+                opt = Nadam() 
+            if self.optimizer == 'adam':
+                opt = Adam()
+
+
+            aux_model.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
+
+            # early stopping control
+            earlyStopping = callbacks.EarlyStopping(monitor='val_loss',
+                                                    patience=self.trn_params.train_patience,
+                                                    verbose=self.trn_params.train_verbose,
+                                                    mode='auto')
+            
+            filepath_checkpoint = 'LSTM_n_init_{}_{}'.format(i_init, self.trn_params.get_str())
+            checkpointer = callbacks.ModelCheckpoint(monitor='val_loss', filepath='../Data/'+filepath_checkpoint, verbose=1, save_best_only=True)
+
+
+
+            aux_desc = aux_model.fit(inputs[train_indexes[0]],
+                                      outputs[train_indexes[0]],
+                                      epochs=self.trn_params.n_epochs,
+                                      batch_size=self.trn_params.batch_size,
+                                      callbacks=[checkpointer],
+                                      verbose=self.trn_params.train_verbose,
+                                      validation_data=(inputs[train_indexes[1]],
+                                                       outputs[train_indexes[1]]),
+                                      shuffle=False,
+                                      class_weight = class_weight)
+
+            if min_loss > np.min(aux_desc.history['val_loss']):
+                if self.trn_params.verbose:
+                    print(('min loss: %1.5f, model loss: %1.5f'%
+                           (min_loss, np.min(aux_desc.history['val_loss']))))
+
+                min_loss = np.min(aux_desc.history['val_loss'])
+
+                min_model = aux_model
+                self.trn_desc = aux_desc.history
+              
+        self.model = min_model
+        self.trained = True
+        return +1
