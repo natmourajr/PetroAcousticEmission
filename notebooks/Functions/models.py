@@ -679,52 +679,17 @@ class KMeansModel(Base):
         return self.cluster_classes[self.model.predict(inputs)]
 
 
-
-
-
-class GenericBuilder():
-    def __init__(self):
-        self.model = None
-        self.base_dict = dict(units = 0, activation = None)
-        self.trained = False
-        self.verbose = False
-        self.optimizer = None
-        self.loss = None
-        self.metrics = None
-        self.n_inits = None
-        self.batch_size = None
-
-    def build_model(self, layer_type=None, arg_dict_list=None):
-        if (arg_dict_list != None):
-            aux_model = Sequential()
-            for arg_dict, layer in zip(arg_dict_list, layer_type):
-                print(layer)
-                print(arg_dict)
-                aux_model.add( layer(**arg_dict) )
-            self.model = aux_model
-
-    def create_arg_dict(self, n_neurons, activation_functions, additional_arguments):
-        dict_list = []
-        for neurons, act_func, adc_args in zip(n_neurons, activation_functions, additional_arguments):
-            aux_dict = dict(units = neurons, activation = act_func)
-            aux_dict.update(adc_args)
-            dict_list.append(aux_dict)
-
-        return dict_list
-
-    def clear_model(self):
-        self.__init__()
-
-    def save(self, filename, path = '.'):
-        model_json = self.model.to_json()
-        with open("%s/%s_model.json"%(path,filename), "w") as json_file:
-            json_file.write(model_json)
-        # serialize weights to HDF5
-        self.model.save_weights("%s/%s_model.h5"%(path,filename))
-
-
 class TrainingParameters():
+
     def __init__(self, *args, **kwargs):
+        """
+            TrainingParameters Class constructor
+
+            Initializes important variables or loads from file (if given as argument to Constructor)
+
+            model_description: name of the model (for saving purposes)
+            description_list: list containing string descriptions for each parameter
+        """
         self.model_description = None
         self.description_list = ['Empty Description']
 
@@ -732,10 +697,18 @@ class TrainingParameters():
             self.load(kwargs.get('filename'), kwargs.get('path'))
 
     def __str__(self):
+        """
+            Prints the description list
+        """
         for desc in self.description_list:
             print(desc)
 
     def get_str(self):
+
+        """
+            (INCOMPLETE) Creates a string used to save the object to a file, identifying it 
+            based on its parameters 
+        """
         return_str = self.model_description
         for key,value in self.__dict__.items():
             if (key=="model_description" or key=="training_description"  or key=="description_list"):
@@ -749,9 +722,15 @@ class TrainingParameters():
         return return_str
 
     def save(self, filename, path='.'):
+        """
+            Saves parameters to pickle file (as a object from TrainingParameters inherited class)
+        """
         pickle.dump(self, open("%s/%s"%(path,filename), "wb"))
 
     def load(self, filename, path='.'):
+        """
+            Load object containing the training parameters
+        """
         loaded_class = pickle.load(open("%s/%s"%(path,filename), "rb"))
         self.__dict__.update(loaded_class.__dict__)
 
@@ -802,6 +781,97 @@ class LSTMParams(NeuralNetworkParamsCyfer):
         self.model_description = 'lstm_params'
 
 
+class GenericBuilder():
+    """
+        GenericBuilder Class
+    """
+    def __init__(self):
+
+        """
+            GenericBuilder class constructor
+            
+            Initializes basic important variables
+
+            model: holds Keras model
+            base_dict: base dictionary for additional function arguments
+            trained: boolean -> 1 = trained, 0 = not trained
+            verbose: verbose mode
+            optimizer: string with optimizer (may change in the future)
+            loss: loss function
+            metrics: statistical metrics to evaluate during training
+            n_inits: number of initial network resets (avoid local minima)
+            batch_size: batch_size
+            callback_list: list contaning callbacks to run on the main Keras fit function
+
+
+        """
+        self.model = None
+        self.base_dict = dict(units = 0, activation = None)
+        self.trained = False
+        self.verbose = False
+        self.optimizer = None
+        self.loss = None
+        self.metrics = None
+        self.n_inits = None
+        self.batch_size = None
+        self.callback_list = None
+
+    def build_model(self, layer_type=None, arg_dict_list=None):
+        
+        """
+            Generic Keras Network Model Builder
+
+            Creates the Keras network model based on a list of layers and their additional
+            arguments
+
+            layer_type: list with each layer type (Keras)
+            arg_dict_list: dictionary with additional inputs for each layer
+        """
+        if (arg_dict_list != None):
+            aux_model = Sequential()
+            for arg_dict, layer in zip(arg_dict_list, layer_type):
+                print(layer)
+                print(arg_dict)
+                aux_model.add( layer(**arg_dict) )
+            self.model = aux_model
+
+    def create_arg_dict(self, n_neurons, activation_functions, additional_arguments):
+        """
+            Creates the list of dictionaries to be used as function parameters for each Keras Layer
+
+            n_neurons: list with the number of neurons for each layer 
+            activation_functions: list with each layer's activation function (Keras)
+            additional_arguments: list of dictionaries containing additional custom function parameters
+
+        """
+        dict_list = []
+        for neurons, act_func, adc_args in zip(n_neurons, activation_functions, additional_arguments):
+            aux_dict = dict(units = neurons, activation = act_func)
+            aux_dict.update(adc_args)
+            dict_list.append(aux_dict)
+
+        return dict_list
+
+    def clear_model(self):
+        """
+            Clears the created model
+        """
+        self.__init__()
+
+    def save(self, filename, path = '.'):
+        """
+            Saves the Keras model to both a JSON and h5 file
+
+            filename: name of the created savefile
+            path: path of the created savefile
+        """
+        model_json = self.model.to_json()
+        with open("%s/%s_model.json"%(path,filename), "w") as json_file:
+            json_file.write(model_json)
+        # serialize weights to HDF5
+        self.model.save_weights("%s/%s_model.h5"%(path,filename))
+
+
 
 class LSTMModel(GenericBuilder):
     """
@@ -809,8 +879,17 @@ class LSTMModel(GenericBuilder):
 
     """
 
-    def __init__(self, input_shape,  n_neurons=[8, 10, 3], layer_type=[LSTM, Dense, Dense] , activation_functions=['hard_sigmoid', 'tanh', 'softmax']):
+    def __init__(self, input_shape,  n_neurons=[8, 10, 3], layer_type=[LSTM, Dense, Dense] , 
+                activation_functions=['hard_sigmoid', 'tanh', 'softmax'], callback_list=[], *args, **kwargs):
 
+        """
+            LSM Constructor
+
+            input_shape: tuple with input shape
+            n_neurons: list with the number of neurons for each layer
+            layer_type: list with each layer type (Keras)
+            activation_functions: list with each layer's activation function (Keras)
+        """
         arg_list = [dict(input_shape = input_shape, return_sequences = False), {}, {}]
         arg_list = self.create_arg_dict(n_neurons, activation_functions, arg_list)
 
@@ -820,13 +899,15 @@ class LSTMModel(GenericBuilder):
         self.model.optimizer = 'RMSProp'
         self.metrics = ['accuracy']
         self.trained = False
+        self.callback_list = callback_list
+        self.trn_params = LSTMParams()
 
     def fit(self, inputs, outputs, train_indexes, trn_params=None, class_weight = None):
 
         """
             LSTM Fit Function
 
-            inputs: normalized input matrix (events X timesteps x features)
+            inputs: normalized input matrix (events X timesteps X features)
             output: categarical (max sparse) output matrix (events X classes)
             n_neurons: integer
             activation_functions:
@@ -847,9 +928,7 @@ class LSTMModel(GenericBuilder):
         else:
             self.trn_params = trn_params
 
-
         min_loss = 9999
-
 
         for i_init in range(self.trn_params.n_inits):
             if self.trn_params.verbose:
@@ -882,16 +961,11 @@ class LSTMModel(GenericBuilder):
                                                     verbose=self.trn_params.train_verbose,
                                                     mode='auto')
             
-            filepath_checkpoint = 'LSTM_n_init_{}_{}'.format(i_init, self.trn_params.get_str())
-            checkpointer = callbacks.ModelCheckpoint(monitor='val_loss', filepath='../Data/'+filepath_checkpoint, verbose=1, save_best_only=True)
-
-
-
             aux_desc = aux_model.fit(inputs[train_indexes[0]],
                                       outputs[train_indexes[0]],
                                       epochs=self.trn_params.n_epochs,
                                       batch_size=self.trn_params.batch_size,
-                                      callbacks=[checkpointer],
+                                      callbacks=self.callback_list,
                                       verbose=self.trn_params.train_verbose,
                                       validation_data=(inputs[train_indexes[1]],
                                                        outputs[train_indexes[1]]),
