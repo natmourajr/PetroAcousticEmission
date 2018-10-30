@@ -880,10 +880,11 @@ class LSTMModel(GenericBuilder):
     """
 
     def __init__(self, input_shape,  n_neurons=[8, 10, 3], layer_type=[LSTM, Dense, Dense] , 
-                activation_functions=['hard_sigmoid', 'tanh', 'softmax'], callback_list=[], *args, **kwargs):
+                activation_functions=['hard_sigmoid', 'tanh', 'softmax'], callback_list=[], 
+                checkpoint_file = None, *args, **kwargs):
 
         """
-            LSM Constructor
+            LSTM Constructor
 
             input_shape: tuple with input shape
             n_neurons: list with the number of neurons for each layer
@@ -901,6 +902,11 @@ class LSTMModel(GenericBuilder):
         self.trained = False
         self.callback_list = callback_list
         self.trn_params = LSTMParams()
+
+        if checkpoint_file:
+            self.checkpoint_file = checkpoint_file
+        else:
+            self.checkpoint_file = "tdms.hdf5"
 
     def fit(self, inputs, outputs, train_indexes, trn_params=None, class_weight = None):
 
@@ -952,14 +958,13 @@ class LSTMModel(GenericBuilder):
             if self.optimizer == 'adam':
                 opt = Adam()
 
-
             aux_model.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
 
             # early stopping control
-            earlyStopping = callbacks.EarlyStopping(monitor='val_loss',
-                                                    patience=self.trn_params.train_patience,
-                                                    verbose=self.trn_params.train_verbose,
-                                                    mode='auto')
+            # earlyStopping = callbacks.EarlyStopping(monitor='val_loss',
+            #                                         patience=self.trn_params.train_patience,
+            #                                         verbose=self.trn_params.train_verbose,
+            #                                         mode='auto')
             
             aux_desc = aux_model.fit(inputs[train_indexes[0]],
                                       outputs[train_indexes[0]],
@@ -979,7 +984,7 @@ class LSTMModel(GenericBuilder):
 
                 min_loss = np.min(aux_desc.history['val_loss'])
 
-                min_model = aux_model
+                min_model = load_model(self.checkpoint_file)
                 self.trn_desc = aux_desc.history
               
         self.model = min_model
